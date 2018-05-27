@@ -21,15 +21,90 @@
 // Using ESP8266 ?
 #if defined(ESP8266)
 #include "stdlib_noniso.h"
+#include <QList.h>
+#include <dtostrg.h>
+
+class aREST_dslider {
+	public:
+	aREST_dslider(){}
+	
+	aREST_dslider(double min,double max, double step, double *pvar,String name){
+		this->min=min;
+		this->max=max;
+		this->step=step;
+		this->pvar=pvar;
+		this->name=name;
+	}
+	
+	double min;
+	double max;
+	double step;
+	double *pvar;
+	String name;
+};
+
+
 #endif
 
 class aREST_UI: public aREST {
 
 public:
 
-aREST_UI() {
-
+int setVar(String command) {
+	int is=0,idx;
+	double val;
+	bool gotval=false,gotidx=false;
+    //  Serial.println(command);
+    QList<String> commands = splitString(command, ';');
+	if(2!=commands.size())
+		return 0;
+    for (int i = 0; i < 2; i++) {
+		//    Serial.print(commands[i]); Serial.println(":");
+		QList<String> pair = splitString(commands[i], '=');
+		if (pair.size() == 2) {
+		    if (pair[0] == "idx") {
+				idx=pair[1].toInt();
+				gotidx=true;
+			} else if (pair[0] == "val") {
+				val=pair[1].toFloat();
+				gotval=true;
+			}
+		}
+	}
+	if(gotval && gotidx){
+		*dVars[idx].pvar=val;
+		return 2;
+	}
+	return 0;
 }
+
+
+aREST_UI() {
+//	int (*p)(String) = &setVar;
+//	function("setvar", &setVar);
+}
+
+QList<String> splitString(String string, char sep) {
+  QList<String> ret = QList<String>();
+  int i, j;
+  String tmps;
+
+  i = 0;
+  while (i < string.length()) {
+    j = string.indexOf(sep, i);
+    if (0 > j) {
+      j = string.length();
+    }
+    tmps = string.substring(i, j);
+    tmps.trim();
+    if (tmps.length() > 0) {
+      ret.push_back(tmps);
+    }
+    i = j + 1;
+  }
+  return ret;
+}
+
 
 // Get title
 void title(String the_title) {
@@ -78,6 +153,14 @@ void slider(int pin) {
 
 }
 
+// Create double entry box
+void doubEntry(double min,double max, double step, double *pvalue, String name) {
+
+  dVars[dVars_index] = aREST_dslider(min,max,step,pvalue,name);
+  dVars_index++;
+
+}
+
 // Create label
 void label(char * label_name){
 
@@ -88,6 +171,7 @@ void label(char * label_name){
 
 // Handle connection
 virtual void root_answer() {
+	char buff[11];
 
     // Answer
     addToBuffer("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n");
@@ -152,6 +236,27 @@ virtual void root_answer() {
       addToBuffer("'></div>");
       addToBuffer("</div>");
     }
+	
+	// Double Variables UI
+    for (int i = 0; i < dVars_index; i++) {
+      addToBuffer("<div class=\"row\">");
+	  addToBuffer("<div class='col-md-3 indicator'>");
+	  addToBuffer(dVars[i].name);
+	  addToBuffer(": </div>");
+      addToBuffer("<div class=\"col-md-2\"><input type='number' step='");
+  	  addToBuffer(dtostrg(dVars[i].step,-10,3,buff));
+	  addToBuffer("' min='");
+  	  addToBuffer(dtostrg(dVars[i].min,-10,3,buff));
+	  addToBuffer("' max='");
+  	  addToBuffer(dtostrg(dVars[i].max,-10,3,buff));
+  	  addToBuffer("' id='variable");
+      addToBuffer(i);
+	  addToBuffer("' value='");
+	  addToBuffer(dtostrg(*dVars[i].pvar,-10,3,buff));
+      addToBuffer("'></div>");
+      addToBuffer("</div>");
+    }
+
 
     // Labels UI
     for (int j = 0; j < int_labels_index; j++) {
@@ -203,6 +308,18 @@ virtual void root_answer() {
       addToBuffer("/' + val); });");
     }
 
+	// Double Variables JavaScript
+    for (int i = 0; i < dVars_index; i++) {
+      addToBuffer("$('#variable");
+      addToBuffer(i);
+      addToBuffer("').mouseup(function() {var val = $('#variable");
+      addToBuffer(i);
+      addToBuffer("').val(); $.getq('queue','/setvar?params=idx=");
+      addToBuffer(i);
+      addToBuffer(";val=' + val+';'); });");
+    }
+
+	
     // Labels JavaScript
     for (int j = 0; j < int_labels_index; j++) {
       addToBuffer("$.getq('queue','/");
@@ -219,6 +336,8 @@ virtual void root_answer() {
     addToBuffer("</body></html>\r\n");
 
 }
+
+
 
 private:
 
@@ -238,11 +357,17 @@ private:
   int sliders[10];
   int sliders_index;
 
+  // Double Buttons array
+  aREST_dslider dVars[10];
+  int dVars_index;
+
   // Indicators array
   uint8_t int_labels_index;
   int * int_labels_variables[10];
   char * int_labels_names[10];
-
+  
+  double dvalue;
+  
 };
 
 #endif
