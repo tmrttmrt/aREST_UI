@@ -318,9 +318,9 @@ virtual void root_answer() {
       addToBuffer(i);
       addToBuffer(";val=' + val+';'); });");
     }
-
-	
+    
     // Labels JavaScript
+    addToBuffer("window.setInterval(function() {");
     for (int j = 0; j < int_labels_index; j++) {
       addToBuffer("$.getq('queue','/");
       addToBuffer(int_labels_names[j]);
@@ -330,6 +330,7 @@ virtual void root_answer() {
       addToBuffer(int_labels_names[j]);
       addToBuffer("); });");
     }
+    addToBuffer("}, 500);");
 
     addToBuffer("});</script>");
 
